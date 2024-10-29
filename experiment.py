@@ -13,6 +13,7 @@ from klibs.KLUserInterface import any_key, key_pressed, ui_request
 from klibs.KLUtilities import deg_to_px, pump
 from klibs.KLTime import Stopwatch
 from klibs.KLEventInterface import TrialEventTicket as ET
+from klibs.KLResponseListener import KeypressListener
 
 from random import choice, randrange
 
@@ -62,6 +63,22 @@ class line_discrimination_vigil(klibs.Experiment):
             rotation=90,
         )
 
+        self.fixation = kld.FixationCross(
+            size=self.params['fixation_width'],
+            thickness=self.params['stroke_width'],
+            fill=WHITE,
+        )
+
+        self.key_listener = KeypressListener(
+            {
+                keymap: {' ': 'present'},
+                timeout: self.params['response_window'],
+                loop_callback: self.listener_callback
+                if hasattr(self, 'listener_callback')
+                else None,
+            }
+        )
+
     @override
     def block(self) -> None:
         fill()
@@ -79,7 +96,7 @@ class line_discrimination_vigil(klibs.Experiment):
 
     @override
     def trial_prep(self) -> None:
-        self.array_center = choice(list(self.array_anchors.values()))
+        self.array_center = self.array_anchors[self.array_location]
         self.array = self.make_array()
 
         trial_events = []
@@ -97,20 +114,15 @@ class line_discrimination_vigil(klibs.Experiment):
 
     @override
     def trial(self) -> dict[str, Any]:
-        rt_clock = Stopwatch()
-        rt = None
 
-        fill()
-        for loc in self.array:
-            blit(self.line, registration=5, location=loc)
-        flip()
+        self.blit_array()
+
+        self.key_listener.collect()
 
         _ = pump()
         while self.evm.before('array_off'):
             _ = ui_request()
-            if key_pressed('space'):
-                rt = rt_clock.elapsed() / 1000
-                break
+
         fill()
         flip()
 
@@ -140,6 +152,16 @@ class line_discrimination_vigil(klibs.Experiment):
     @override
     def clean_up(self) -> None:
         pass
+
+    def blit_array(self) -> None:
+        fill()
+        blit(self.fixation, registration=5, location=P.screen_c)
+
+        if self.evm.before('array_off'):
+            for loc in self.array:
+                blit(self.line, registration=5, location=loc)
+
+        flip()
 
     def make_array(self) -> list[tuple[int, int]]:
         locs = []
