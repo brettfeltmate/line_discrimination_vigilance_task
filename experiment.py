@@ -11,9 +11,10 @@ from klibs.KLGraphics import KLDraw as kld
 from klibs.KLGraphics import blit, fill, flip
 from klibs.KLUserInterface import any_key, key_pressed, ui_request
 from klibs.KLUtilities import deg_to_px, pump
-from klibs.KLTime import Stopwatch
-from klibs.KLEventInterface import TrialEventTicket as ET
+from klibs.KLEventInterface import TrialEventTicket as tet
 from klibs.KLResponseListener import KeypressListener
+from klibs.KLTrialFactory import TrialException, TrialFactory
+from klibs.KLDatabase import DatabaseManager
 
 from random import choice, randrange
 
@@ -32,8 +33,9 @@ class line_discrimination_vigil(klibs.Experiment):
             'fixation_width': deg_to_px(0.5),
             'stroke_width': deg_to_px(0.1),
             'jitter_unit': deg_to_px(0.1),
-            'jitter_bound': 5,
-            'target_offset': 11,  # NOTE: initial value; procedurally redetermined via performance checks
+            'jitter_bound': deg_to_px(5),
+            # Multiplier; initial value, later modified based on performance
+            'target_offset_mod': 2,
             'flanker_gap': deg_to_px(0.15),
             'array_locs': [-2, -1, 0, 1, 2],
             # in ms
@@ -79,6 +81,18 @@ class line_discrimination_vigil(klibs.Experiment):
             }
         )
 
+        self.factory = TrialFactory()
+        self.trial_factory.insert_block(
+            block_num=1,
+            practice=True,
+            trial_count=P.trials_per_practice_block,
+            factor_mask={'target_trial': [True, False]},
+        )
+
+        self.dm = DatabaseManager(
+            path='./ExpAssets/line_discrimination_vigil.db'
+        )
+
     @override
     def block(self) -> None:
         fill()
@@ -110,7 +124,7 @@ class line_discrimination_vigil(klibs.Experiment):
         trial_events.append(['end_trial', self.params['inter_trial_interval']])
 
         for ev in trial_events:
-            self.evm.register_ticket(ET(ev[0], ev[1]))
+            self.evm.register_ticket(tet(ev[0], ev[1]))
 
     @override
     def trial(self) -> dict[str, Any]:
@@ -147,11 +161,52 @@ class line_discrimination_vigil(klibs.Experiment):
 
     @override
     def trial_clean_up(self) -> None:
-        pass
+
+        if P.practicing and P.trial_number == P.trials_per_practice_block:
+            ideal_performance = self.check_performance()
+
+            if not ideal_performance:
+                self.adapt_difficulty()
+
+                self.factory.insert_block(
+                    block_num=P.block_number + 1,
+                    practice=True,
+                    trial_count=P.trials_per_practice_block,
+                    factor_mask={'target_trial': [True, False]},
+                )
 
     @override
     def clean_up(self) -> None:
         pass
+
+    def check_performance(self) -> bool:
+        # query block performance from database
+        # check if accuracy ~= 80%
+        # keep record of blockwise performance
+        # end performance after two consecutive blocks w/ 80% accuracy
+
+        check_log = []
+
+        responses = self.database.select(
+            table='trials',
+            columns='correct',
+            where={
+                'practicing': P.practicing,
+                'block_num': P.block_number,
+                'participant_id': P.participant_id,
+            },
+        )
+
+        check_log.append(sum(responses) >= 8)
+
+        # FIXME: return flag indicating whether to raise, lower, or maintain difficulty
+        if check_log[-1]:
+            try:
+                return check_log[-2]
+            except IndexError:
+                pass
+
+        return False
 
     def blit_array(self) -> None:
         fill()
@@ -169,13 +224,19 @@ class line_discrimination_vigil(klibs.Experiment):
         # HACK: values hardcoded for now
         flanker_jitter = [
             randrange(
-                -self.params['jitter_bound'], self.params['jitter_bound'], 0.02
+                -self.params['jitter_bound'],
+                self.params['jitter_bound'],
+                self.params['jitter_unit'],
             )
         ]
 
         # TODO: scaler addition
         if self.target_trial:
             flanker_jitter[2] *= self.params['jitter_mod']
+            if flanker_jitter[2] < 0:
+                flanker_jitter[2] -= self.params['jitter_unit']
+            else:
+                flanker_jitter[2] += self.params['jitter_unit']
 
         for i in range(5):
             x = self.array_center[0] + (

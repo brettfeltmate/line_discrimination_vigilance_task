@@ -68,3 +68,4 @@ append_hostname = False
 #########################################
 # PROJECT-SPECIFIC VARS
 #########################################
+trials_per_practice_block = 10
