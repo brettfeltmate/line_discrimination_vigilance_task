@@ -33,9 +33,9 @@ class line_discrimination_vigil(klibs.Experiment):
             'fixation_width': deg_to_px(0.5),
             'stroke_width': deg_to_px(0.1),
             'jitter_unit': deg_to_px(0.1),
-            'jitter_bound': deg_to_px(5),
+            'jitter_bound': deg_to_px(0.5),
             # Multiplier; initial value, later modified based on performance
-            'target_offset_mod': 2,
+            'target_offset_mod': 2.1,
             'flanker_gap': deg_to_px(0.15),
             'array_locs': [-2, -1, 0, 1, 2],
             # in ms
@@ -71,6 +71,7 @@ class line_discrimination_vigil(klibs.Experiment):
             fill=WHITE,
         )
 
+        # listen for spacebar presses
         self.key_listener = KeypressListener(
             {
                 keymap: {' ': 'present'},
@@ -81,14 +82,17 @@ class line_discrimination_vigil(klibs.Experiment):
             }
         )
 
+        # possibly unneeded
         self.dm = DatabaseManager(
             path='./ExpAssets/line_discrimination_vigil.db'
         )
 
+        # practice block true length conditionally determined from performance
         if P.run_practice_blocks:
             self.insert_practice_block(block_nums=[1], trial_counts=[1])
 
         # TODO: better naming
+        # used to monitor and log performance during practice
         self.performance_log = []
 
     @override
@@ -110,6 +114,7 @@ class line_discrimination_vigil(klibs.Experiment):
 
         any_key()
 
+        # loop, creating new practice trials until performance at threshold
         if P.practicing:
             self.performance_at_threshold = False
             while P.practicing:
@@ -125,15 +130,17 @@ class line_discrimination_vigil(klibs.Experiment):
 
                 self.evm.stop_clock()
                 self.trial_clean_up()
-                # Once practice is complete, the loop is exited
+
                 if self.performance_at_threshold:
                     P.practicing = False
 
     @override
     def trial_prep(self) -> None:
+        # get location and spawn array for trial
         self.array_center = self.array_anchors[self.array_location]
         self.array = self.make_array()
 
+        # define time-series of events
         trial_events = []
         trial_events.append(['remove_array', self.params['array_duration']])
         trial_events.append(
@@ -150,34 +157,48 @@ class line_discrimination_vigil(klibs.Experiment):
     @override
     def trial(self) -> dict[str, Any]:
 
+        # present array immediately
         self.blit_array()
 
-        self.key_listener.collect()
+        # listen for responses
+        # handles removal of array
+        resp, rt = self.key_listener.collect()
 
-        # TODO: log response accuracy
+        # log response accuracy
+        if self.target_trial and resp:
+            correct = 1
+        elif not self.target_trial and resp is None:
+            correct = 1
+        else:
+            correct = 0
+
         return {
             'block_num': P.block_number,
             'trial_num': P.trial_number,
             'target_trial': self.target_trial,
+            'array_location': self.array_location,
             'target_jitter': self.params['jitter_mod']
             if self.target_trial
             else 'NA',
-            'rt': rt if rt is not None else 'NA',
+            'rt': rt,
+            'correct': correct,
         }
 
     @override
     def trial_clean_up(self) -> None:
-
+        # after 20 trials, and every 10 trials following, check
+        # performance over last 20 trials, adapting task difficultly as needed.
         if P.practicing and P.trial_number >= 20 and P.trial_number % 10 == 0:
             self.performance_log.append(self.performance_check())
 
             if self.performance_log[-1] == 'same':
+                # will fail during initial performance check
                 try:
                     if self.performance_log[-2] == 'same':
                         self.performance_at_threshold = True
                         return
                 except IndexError:
-                    self.adapt_difficulty(make='same')
+                    self.adapt_difficulty(self.performance_log[-1])
 
             self.adapt_difficulty(make=self.performance_log[-1])
 
@@ -192,14 +213,15 @@ class line_discrimination_vigil(klibs.Experiment):
             )
 
         if make == 'harder':
-            adjustment = 1
+            adjustment = -0.1
         elif make == 'easier':
-            adjustment = -1
+            adjustment = 0.1
         else:
             adjustment = 0
 
         self.params['target_offset_mod'] += adjustment
 
+    # grabs and sums accuracy across last 20 trials
     def performance_check(self) -> bool:
         responses = self.database.select(
             table='trials',
@@ -242,7 +264,7 @@ class line_discrimination_vigil(klibs.Experiment):
     def make_array(self) -> list[tuple[int, int]]:
         locs = []
 
-        # HACK: values hardcoded for now
+        # randomly sample jitter values
         flanker_jitter = [
             randrange(
                 -self.params['jitter_bound'],
@@ -251,14 +273,12 @@ class line_discrimination_vigil(klibs.Experiment):
             )
         ]
 
-        # TODO: scaler addition
         if self.target_trial:
-            flanker_jitter[2] *= self.params['jitter_mod']
-            if flanker_jitter[2] < 0:
-                flanker_jitter[2] -= self.params['jitter_unit']
-            else:
-                flanker_jitter[2] += self.params['jitter_unit']
+            # to be discriminable at all, targets' jitter must exceed that of any flankers
+            max_jitter = max(flanker_jitter)
+            flanker_jitter[2] = max_jitter * self.params['target_offset_mod']
 
+        # construct (x,y) coords for each line in array
         for i in range(5):
             x = self.array_center[0] + (
                 self.params['array_locs'][i] * self.params['flanker_offset']
