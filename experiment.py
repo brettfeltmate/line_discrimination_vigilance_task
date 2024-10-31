@@ -81,25 +81,27 @@ class line_discrimination_vigil(klibs.Experiment):
             }
         )
 
-        self.factory = TrialFactory()
-        self.trial_factory.insert_block(
-            block_num=1,
-            practice=True,
-            trial_count=P.trials_per_practice_block,
-            factor_mask={'target_trial': [True, False]},
-        )
-
         self.dm = DatabaseManager(
             path='./ExpAssets/line_discrimination_vigil.db'
         )
 
+        if P.run_practice_blocks:
+            self.insert_practice_block(block_nums=[1], trial_counts=[1])
+
+        # TODO: better naming
+        self.performance_log = []
+
     @override
     def block(self) -> None:
+        msg = 'Hit space for targets.\nAny key to start block.'
+        if P.practicing:
+            msg += '\n\n(practice)'
+
         fill()
 
         # TODO: instructions
         message(
-            'Hit space for targets.\nAny key to start block.',
+            message=msg,
             registration=5,
             location=P.screen_c,
             blit_txt=True,
@@ -107,6 +109,25 @@ class line_discrimination_vigil(klibs.Experiment):
         flip()
 
         any_key()
+
+        if P.practicing:
+            self.performance_at_threshold = False
+            while P.practicing:
+                self.target_trial = random.choice([True, False])
+
+                self.trial_prep()
+                self.evm.start_clock()
+
+                try:
+                    self.trial()
+                except TrialException:
+                    pass
+
+                self.evm.stop_clock()
+                self.trial_clean_up()
+                # Once practice is complete, the loop is exited
+                if self.performance_at_threshold:
+                    P.practicing = False
 
     @override
     def trial_prep(self) -> None:
@@ -133,21 +154,6 @@ class line_discrimination_vigil(klibs.Experiment):
 
         self.key_listener.collect()
 
-        _ = pump()
-        while self.evm.before('array_off'):
-            _ = ui_request()
-
-        fill()
-        flip()
-
-        while self.evm.before('response_timeout'):
-            _ = ui_request()
-            if rt is None and key_pressed('space'):
-                rt = rt_clock.elapsed()
-
-        while self.evm.before('trial_end'):
-            _ = ui_request()
-
         # TODO: log response accuracy
         return {
             'block_num': P.block_number,
@@ -162,51 +168,66 @@ class line_discrimination_vigil(klibs.Experiment):
     @override
     def trial_clean_up(self) -> None:
 
-        if P.practicing and P.trial_number == P.trials_per_practice_block:
-            ideal_performance = self.check_performance()
+        if P.practicing and P.trial_number >= 20 and P.trial_number % 10 == 0:
+            self.performance_log.append(self.performance_check())
 
-            if not ideal_performance:
-                self.adapt_difficulty()
+            if self.performance_log[-1] == 'same':
+                try:
+                    if self.performance_log[-2] == 'same':
+                        self.performance_at_threshold = True
+                        return
+                except IndexError:
+                    self.adapt_difficulty(make='same')
 
-                self.factory.insert_block(
-                    block_num=P.block_number + 1,
-                    practice=True,
-                    trial_count=P.trials_per_practice_block,
-                    factor_mask={'target_trial': [True, False]},
-                )
+            self.adapt_difficulty(make=self.performance_log[-1])
 
     @override
     def clean_up(self) -> None:
         pass
 
-    def check_performance(self) -> bool:
-        # query block performance from database
-        # check if accuracy ~= 80%
-        # keep record of blockwise performance
-        # end performance after two consecutive blocks w/ 80% accuracy
+    def adapt_difficulty(self, make: str) -> None:
+        if make is None:
+            raise ValueError(
+                'make must be one of: "harder", "easier", or "same"'
+            )
 
-        check_log = []
+        if make == 'harder':
+            adjustment = 1
+        elif make == 'easier':
+            adjustment = -1
+        else:
+            adjustment = 0
 
+        self.params['target_offset_mod'] += adjustment
+
+    def performance_check(self) -> bool:
         responses = self.database.select(
             table='trials',
             columns='correct',
             where={
                 'practicing': P.practicing,
-                'block_num': P.block_number,
                 'participant_id': P.participant_id,
             },
         )
 
-        check_log.append(sum(responses) >= 8)
+        if len(responses) != P.trial_number:
+            raise RuntimeError(
+                f'Expected {P.trial_number} responses for performance check, got {len(responses)}.'
+            )
 
-        # FIXME: return flag indicating whether to raise, lower, or maintain difficulty
-        if check_log[-1]:
-            try:
-                return check_log[-2]
-            except IndexError:
-                pass
+        if len(responses) < 20:
+            raise RuntimeError(
+                f'Query expected to return 20 responses at minimum, got {len(responses)}'
+            )
 
-        return False
+        acc = sum(responses[-20:])
+
+        if acc > 17:
+            return 'harder'
+        elif acc <= 15:
+            return 'easier'
+        else:
+            return 'same'
 
     def blit_array(self) -> None:
         fill()
