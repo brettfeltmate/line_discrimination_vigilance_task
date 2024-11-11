@@ -68,3 +68,10 @@ append_hostname = False
 #########################################
 # PROJECT-SPECIFIC VARS
 #########################################
+performance_bounds_percent = [0.8, 0.9]
+assessment_window = 20
+performance_bounds = [
+    assessment_window * x for x in performance_bounds_percent
+]
+difficulty_upstep = -0.1
+difficulty_downstep = 0.1

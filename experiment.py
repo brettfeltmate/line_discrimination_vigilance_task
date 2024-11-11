@@ -9,14 +9,14 @@ from klibs import P
 from klibs.KLCommunication import message
 from klibs.KLGraphics import KLDraw as kld
 from klibs.KLGraphics import blit, fill, flip
-from klibs.KLUserInterface import any_key, key_pressed, ui_request
-from klibs.KLUtilities import deg_to_px, pump
+from klibs.KLUserInterface import any_key
+from klibs.KLUtilities import deg_to_px
 from klibs.KLEventInterface import TrialEventTicket as tet
 from klibs.KLResponseListener import KeypressListener
-from klibs.KLTrialFactory import TrialException, TrialFactory
+from klibs.KLTrialFactory import TrialException
 from klibs.KLDatabase import DatabaseManager
 
-from random import choice, randrange
+from random import randrange, choice
 
 WHITE = [255, 255, 255, 255]
 TL = 'top_left'
@@ -74,9 +74,9 @@ class line_discrimination_vigil(klibs.Experiment):
         # listen for spacebar presses
         self.key_listener = KeypressListener(
             {
-                keymap: {' ': 'present'},
-                timeout: self.params['response_window'],
-                loop_callback: self.listener_callback
+                'keymap': {' ': 'present'},
+                'timeout': self.params['response_window'],
+                'loop_callback': self.listener_callback
                 if hasattr(self, 'listener_callback')
                 else None,
             }
@@ -91,7 +91,6 @@ class line_discrimination_vigil(klibs.Experiment):
         if P.run_practice_blocks:
             self.insert_practice_block(block_nums=[1], trial_counts=[1])
 
-        # TODO: better naming
         # used to monitor and log performance during practice
         self.performance_log = []
 
@@ -116,9 +115,9 @@ class line_discrimination_vigil(klibs.Experiment):
 
         # loop, creating new practice trials until performance at threshold
         if P.practicing:
-            self.performance_at_threshold = False
+            self.difficulty_check_completed = False
             while P.practicing:
-                self.target_trial = random.choice([True, False])
+                self.target_trial = choice([True, False])
 
                 self.trial_prep()
                 self.evm.start_clock()
@@ -129,16 +128,17 @@ class line_discrimination_vigil(klibs.Experiment):
                     pass
 
                 self.evm.stop_clock()
-                self.trial_clean_up()
+                self.__assess_task_difficulty()
 
-                if self.performance_at_threshold:
+                if self.difficulty_check_completed:
                     P.practicing = False
+                    break
 
     @override
     def trial_prep(self) -> None:
         # get location and spawn array for trial
         self.array_center = self.array_anchors[self.array_location]
-        self.array = self.make_array()
+        self.array = self.__make_array()
 
         # define time-series of events
         trial_events = []
@@ -158,7 +158,7 @@ class line_discrimination_vigil(klibs.Experiment):
     def trial(self) -> dict[str, Any]:
 
         # present array immediately
-        self.blit_array()
+        self.__blit_array()
 
         # listen for responses
         # handles removal of array
@@ -172,6 +172,13 @@ class line_discrimination_vigil(klibs.Experiment):
         else:
             correct = 0
 
+        practice_performance = 'NA'
+        if P.practicing:
+            try:
+                practice_performance = self.performance_log[-1]
+            except IndexError:
+                pass
+
         return {
             'block_num': P.block_number,
             'trial_num': P.trial_number,
@@ -180,49 +187,58 @@ class line_discrimination_vigil(klibs.Experiment):
             'target_jitter': self.params['jitter_mod']
             if self.target_trial
             else 'NA',
+            'practice_performance': practice_performance,
             'rt': rt,
             'correct': correct,
         }
 
     @override
     def trial_clean_up(self) -> None:
-        # after 20 trials, and every 10 trials following, check
-        # performance over last 20 trials, adapting task difficultly as needed.
-        if P.practicing and P.trial_number >= 20 and P.trial_number % 10 == 0:
-            self.performance_log.append(self.performance_check())
-
-            if self.performance_log[-1] == 'same':
-                # will fail during initial performance check
-                try:
-                    if self.performance_log[-2] == 'same':
-                        self.performance_at_threshold = True
-                        return
-                except IndexError:
-                    self.adapt_difficulty(self.performance_log[-1])
-
-            self.adapt_difficulty(make=self.performance_log[-1])
+        pass
 
     @override
     def clean_up(self) -> None:
         pass
 
-    def adapt_difficulty(self, make: str) -> None:
-        if make is None:
-            raise ValueError(
-                'make must be one of: "harder", "easier", or "same"'
+    def __assess_task_difficulty(self) -> None:
+        if not P.practicing:
+            raise RuntimeError(
+                'Task difficulty assessment should only performed during practice.'
             )
 
-        if make == 'harder':
-            adjustment = -0.1
-        elif make == 'easier':
-            adjustment = 0.1
-        else:
-            adjustment = 0
+        adjustment = 0
 
-        self.params['target_offset_mod'] += adjustment
+        # after 20 trials, and every 10 trials following conduct performance check
+        if P.trial_number >= 20 and P.trial_number % 10 == 0:
+            self.performance_log.append(self.__query_performance())
+
+            adjustment = None
+
+            # if sufficient data, check for performance stability
+            if len(self.performance_log) > 1:
+                if self.performance_log[-2] == 'ideal':
+                    if self.performance_log[-1] == 'ideal':
+                        self.difficulty_check_completed = True
+                        return
+
+            # if insufficient, or otherwise not ideal, adjust task difficulty
+            adjustment = self.__task_difficulty_adjustment(
+                self.performance_log[-1]
+            )
+
+            self.params['target_offset_mod'] += adjustment
+
+    def __task_difficulty_adjustment(self, make: str) -> None:
+        if make not in ['high', 'low', 'ideal']:
+            raise ValueError('make must be one of: "high", "low", "ideal"')
+
+        if make == 'ideal':
+            return 0
+
+        return P.difficulty_upstep if make == 'high' else P.difficulty_downstep
 
     # grabs and sums accuracy across last 20 trials
-    def performance_check(self) -> bool:
+    def __query_performance(self) -> bool:
         responses = self.database.select(
             table='trials',
             columns='correct',
@@ -237,21 +253,21 @@ class line_discrimination_vigil(klibs.Experiment):
                 f'Expected {P.trial_number} responses for performance check, got {len(responses)}.'
             )
 
-        if len(responses) < 20:
+        if len(responses) < P.assessment_window:
             raise RuntimeError(
                 f'Query expected to return 20 responses at minimum, got {len(responses)}'
             )
 
-        acc = sum(responses[-20:])
+        acc = sum(responses[-P.assessment_window :])
 
-        if acc > 17:
-            return 'harder'
-        elif acc <= 15:
-            return 'easier'
+        if acc > P.performance_bounds[1]:
+            return 'high'
+        elif acc < P.performance_bounds[0]:
+            return 'low'
         else:
-            return 'same'
+            return 'ideal'
 
-    def blit_array(self) -> None:
+    def __blit_array(self) -> None:
         fill()
         blit(self.fixation, registration=5, location=P.screen_c)
 
@@ -261,7 +277,7 @@ class line_discrimination_vigil(klibs.Experiment):
 
         flip()
 
-    def make_array(self) -> list[tuple[int, int]]:
+    def __make_array(self) -> list[tuple[int, int]]:
         locs = []
 
         # randomly sample jitter values
