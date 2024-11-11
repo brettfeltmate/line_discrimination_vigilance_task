@@ -117,8 +117,10 @@ class line_discrimination_vigil(klibs.Experiment):
         if P.practicing:
             self.difficulty_check_completed = False
             while P.practicing:
+                # need to manually enforce 50/50 split of target trials for practice
                 self.target_trial = choice([True, False])
 
+                # -- trial start --
                 self.trial_prep()
                 self.evm.start_clock()
 
@@ -128,8 +130,12 @@ class line_discrimination_vigil(klibs.Experiment):
                     pass
 
                 self.evm.stop_clock()
+                # -- trial end --
+
+                # assess task difficulty every 10 trials
                 self.__assess_task_difficulty()
 
+                # if difficulty checks completed, end practice
                 if self.difficulty_check_completed:
                     P.practicing = False
                     break
@@ -172,7 +178,8 @@ class line_discrimination_vigil(klibs.Experiment):
         else:
             correct = 0
 
-        practice_performance = 'NA'
+        # for posterity, log results of performance checks
+        practice_performance = 'NA'  # default value to avoid value errors
         if P.practicing:
             try:
                 practice_performance = self.performance_log[-1]
@@ -201,6 +208,15 @@ class line_discrimination_vigil(klibs.Experiment):
         pass
 
     def __assess_task_difficulty(self) -> None:
+        """Assesses and adjusts task difficulty during practice trials.
+
+        Monitors participant performance every 10 trials after the first 20 trials.
+        Task difficulty is adjusted based on performance thresholds until stability
+        is achieved (two consecutive 'ideal' performance assessments).
+
+        Raises:
+            RuntimeError: If called outside of practice trials.
+        """
         if not P.practicing:
             raise RuntimeError(
                 'Task difficulty assessment should only performed during practice.'
@@ -228,17 +244,41 @@ class line_discrimination_vigil(klibs.Experiment):
 
             self.params['target_offset_mod'] += adjustment
 
-    def __task_difficulty_adjustment(self, make: str) -> None:
-        if make not in ['high', 'low', 'ideal']:
-            raise ValueError('make must be one of: "high", "low", "ideal"')
+    def __task_difficulty_adjustment(self, performance: str) -> float:
+        """Determines the adjustment value for task difficulty based on performance.
 
-        if make == 'ideal':
-            return 0
+        Args:
+            performance: Performance category ('high', 'low', or 'ideal') supplied by __query_performance
 
-        return P.difficulty_upstep if make == 'high' else P.difficulty_downstep
+        Returns:
+            float: Adjustment value for target offset modifier
+                  (0 for ideal, upstep for high, downstep for low; step values defined in _params)
+
+        Raises:
+            ValueError: If performance is not one of 'high', 'low', or 'ideal'
+        """
+        if performance not in ['high', 'low', 'ideal']:
+            raise ValueError('performance must be one of: "high", "low", "ideal"')
+
+        if performance == 'ideal':
+            return 0.0
+
+        return P.difficulty_upstep if performance == 'high' else P.difficulty_downstep
 
     # grabs and sums accuracy across last 20 trials
-    def __query_performance(self) -> bool:
+    def __query_performance(self) -> str:
+        """Queries and evaluates participant performance over assessment window.
+
+        Retrieves accuracy data for recent trials and categorizes performance
+        based on performance bounds (defined in _params).
+
+        Returns:
+            str: Performance category ('high', 'low', or 'ideal')
+
+        Raises:
+            RuntimeError: If number of responses doesn't match trial number
+                        or if insufficient trials for assessment
+        """
         responses = self.database.select(
             table='trials',
             columns='correct',
