@@ -73,5 +73,5 @@ assessment_window = 20
 performance_bounds = [
     assessment_window * x for x in performance_bounds_percent
 ]
-difficulty_upstep = -0.1
-difficulty_downstep = 0.1
+difficulty_upstep = -0.3
+difficulty_downstep = 0.3
