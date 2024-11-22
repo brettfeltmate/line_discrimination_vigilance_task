@@ -13,7 +13,6 @@ CREATE TABLE trials (
     practicing text not null,
     block_num integer not null,
     trial_num integer not null,
-    array_location text not null,
     target_trial text not null,
     target_jitter text not null,
     practice_performance text not null,
