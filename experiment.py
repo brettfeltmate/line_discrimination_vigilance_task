@@ -2,8 +2,6 @@
 
 __author__ = "Brett Feltmate"
 
-from typing import Any
-
 import klibs
 from klibs import P
 from klibs.KLCommunication import message
@@ -28,7 +26,7 @@ BR = "bottom_right"
 
 class line_discrimination_vigil(klibs.Experiment):
 
-    def setup(self) -> None:
+    def setup(self):
 
         if P.development_mode:
             P.practicing = True
@@ -68,7 +66,7 @@ class line_discrimination_vigil(klibs.Experiment):
         # used to monitor and log performance during practice
         self.performance_log = []
 
-    def block(self) -> None:
+    def block(self):
         msg = "When a target is presented, press the spacebar, otherwise press nothing.\nPress any key to start block."
         if P.practicing:
             msg += "\n\nThis is a practice block. If you make an error, a tone will sound to indicate so."
@@ -118,7 +116,7 @@ class line_discrimination_vigil(klibs.Experiment):
                     P.practicing = False
                     break
 
-    def trial_prep(self) -> None:
+    def trial_prep(self):
         # get location and spawn array for trial
         self.array = self.make_array()
 
@@ -130,7 +128,7 @@ class line_discrimination_vigil(klibs.Experiment):
         for ev in trial_events:
             self.evm.register_ticket(tet(ev[0], ev[1]))
 
-    def trial(self) -> dict[str, Any]:  # type: ignore[override]
+    def trial(self):  # type: ignore[override]
 
         resp, rt = None, None
 
@@ -183,13 +181,13 @@ class line_discrimination_vigil(klibs.Experiment):
             "correct": correct,
         }
 
-    def trial_clean_up(self) -> None:
+    def trial_clean_up(self):
         pass
 
-    def clean_up(self) -> None:
+    def clean_up(self):
         pass
 
-    def assess_task_difficulty(self) -> None:
+    def assess_task_difficulty(self):
         """Assesses and adjusts task difficulty during practice trials.
 
         Monitors participant performance every 10 trials after the first 20 trials.
@@ -253,7 +251,7 @@ class line_discrimination_vigil(klibs.Experiment):
 
             self.params["target_offset_mod"] += adjustment
 
-    def task_difficulty_adjustment(self, performance: str) -> float:
+    def task_difficulty_adjustment(self, performance: str):
         """Determines the adjustment value for task difficulty based on performance.
 
         Args:
@@ -276,7 +274,7 @@ class line_discrimination_vigil(klibs.Experiment):
         return P.difficulty_upstep if performance == "high" else P.difficulty_downstep  # type: ignore[attr-defined]
 
     # grabs and sums accuracy across last 20 trials
-    def query_performance(self) -> str:
+    def query_performance(self):
         """Queries and evaluates participant performance over assessment window.
 
         Retrieves accuracy data for recent trials and categorizes performance
@@ -302,7 +300,7 @@ class line_discrimination_vigil(klibs.Experiment):
         else:
             return "ideal"
 
-    def blit_array(self) -> None:
+    def blit_array(self):
         print("__blit_array")
         fill()
         blit(self.fixation, registration=5, location=P.screen_c)
@@ -328,7 +326,7 @@ class line_discrimination_vigil(klibs.Experiment):
 
         flip()
 
-    def make_array(self) -> list[tuple[int, int]]:
+    def make_array(self):
         """Creates an array of line positions for the visual discrimination task.
 
         Generates a rotated array of 5 lines, where each line's position is determined by:
