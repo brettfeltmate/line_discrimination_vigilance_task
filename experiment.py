@@ -207,21 +207,21 @@ class line_discrimination_vigil(klibs.Experiment):
 
         # after 20 trials, and every 10 trials following conduct performance check
         if self.practice_trial_num >= 20 and self.practice_trial_num % 10 == 0:
-            if P.development_mode:
-                msg = (
-                    f"Assessing performance from trials {self.practice_trial_num - 10} to {self.practice_trial_num}",
-                )
-                print(msg)
-                fill()
-                message(
-                    text=msg,
-                    location=P.screen_c,
-                    registration=5,
-                    blit_txt=True,
-                )
-                flip()
-                any_key()
-                clear()
+            # if P.development_mode:
+            #     msg = (
+            #         f"Assessing performance from trials {self.practice_trial_num - 10} to {self.practice_trial_num}",
+            #     )
+            #     print(msg)
+            #     fill()
+            #     message(
+            #         text=msg,
+            #         location=P.screen_c,
+            #         registration=5,
+            #         blit_txt=True,
+            #     )
+            #     flip()
+            #     any_key()
+            #     clear()
 
             self.performance_log.append(self.query_performance())
 
@@ -237,17 +237,17 @@ class line_discrimination_vigil(klibs.Experiment):
             # if insufficient, or otherwise not ideal, adjust task difficulty
             adjustment = self.task_difficulty_adjustment(self.performance_log[-1])
 
-            if P.development_mode:
-                fill()
-
-                msg = f"Performance found to be {self.performance_log[-1]}\nAdjusting offset by {adjustment}."
-                print(msg)
-                msg += "\n(any key)"
-                message(text=msg, location=P.screen_c, registration=5, blit_txt=True)
-
-                flip()
-                any_key()
-                clear()
+            # if P.development_mode:
+            #     fill()
+            #
+            #     msg = f"Performance found to be {self.performance_log[-1]}\nAdjusting offset by {adjustment}."
+            #     print(msg)
+            #     msg += "\n(any key)"
+            #     message(text=msg, location=P.screen_c, registration=5, blit_txt=True)
+            #
+            #     flip()
+            #     any_key()
+            #     clear()
 
             self.params["target_offset_mod"] += adjustment
 
