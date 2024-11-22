@@ -1,13 +1,5 @@
-from klibs.KLStructure import FactorSet
+from klibs.KLIndependentVariable import IndependentVariableSet
 
-exp_factors = FactorSet(
-    {
-        'target_trial': [True, False, False, False],
-        'array_location': [
-            'top_left',
-            'top_right',
-            'bottom_left',
-            'bottom_right',
-        ],
-    },
-)
+line_discrimination_vigilance_task_ind_vars = IndependentVariableSet()
+
+line_discrimination_vigilance_task_ind_vars.add_variable("target_trial", bool, [True, False, False, False])
