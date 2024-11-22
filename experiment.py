@@ -251,7 +251,7 @@ class line_discrimination_vigil(klibs.Experiment):
 
             self.params["target_offset_mod"] += adjustment
 
-    def task_difficulty_adjustment(self, performance: str):
+    def task_difficulty_adjustment(self, performance):
         """Determines the adjustment value for task difficulty based on performance.
 
         Args:
