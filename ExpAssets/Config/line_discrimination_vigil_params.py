@@ -8,9 +8,7 @@ manual_demographics_collection = False
 manual_trial_generation = False
 run_practice_blocks = True
 multi_user = False
-view_distance = (
-    57  # in centimeters, 57cm = 1 deg of visual angle per cm of screen
-)
+view_distance = 57  # in centimeters, 57cm = 1 deg of visual angle per cm of screen
 allow_hidpi = True
 
 #########################################
@@ -25,8 +23,8 @@ eye_tracking = False
 default_fill_color = (45, 45, 45, 255)
 default_color = (255, 255, 255, 255)
 default_font_size = 23
-default_font_unit = 'px'
-default_font_name = 'Hind-Medium'
+default_font_unit = "px"
+default_font_name = "Hind-Medium"
 
 #########################################
 # EyeLink Settings
@@ -44,7 +42,7 @@ saccadic_motion_threshold = 0.15
 multi_session_project = False
 trials_per_block = 300
 blocks_per_experiment = 3
-conditions = []
+conditions = ['25', '50', '75']
 default_condition = None
 
 #########################################
@@ -58,11 +56,11 @@ dm_show_gaze_dot = True
 #########################################
 # Data Export Settings
 #########################################
-primary_table = 'trials'
-unique_identifier = 'userhash'
-exclude_data_cols = ['created']
-append_info_cols = ['random_seed']
-datafile_ext = '.txt'
+primary_table = "trials"
+unique_identifier = "userhash"
+exclude_data_cols = ["created"]
+append_info_cols = ["random_seed"]
+datafile_ext = ".txt"
 append_hostname = False
 
 #########################################
@@ -70,8 +68,6 @@ append_hostname = False
 #########################################
 performance_bounds_percent = [0.8, 0.9]
 assessment_window = 20
-performance_bounds = [
-    assessment_window * x for x in performance_bounds_percent
-]
+performance_bounds = [assessment_window * x for x in performance_bounds_percent]
 difficulty_upstep = -0.3
 difficulty_downstep = 0.3

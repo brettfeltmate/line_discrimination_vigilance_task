@@ -1,5 +1,13 @@
-from klibs.KLIndependentVariable import IndependentVariableSet
+from klibs.KLStructure import FactorSet
+from klibs import P
 
-line_discrimination_vigilance_task_ind_vars = IndependentVariableSet()
+probabilities = []
 
-line_discrimination_vigilance_task_ind_vars.add_variable("target_trial", bool, [True, False, False, False])
+if P.condition == "75":
+    probabilities = [(True, 3), False]
+elif P.condition == "25":
+    probabilities = [True, (False, 3)]
+else:
+    probabilites = [True, False]
+
+exp_factors = FactorSet({"target_trial": probabilities})

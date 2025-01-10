@@ -6,7 +6,7 @@ import klibs
 from klibs import P
 from klibs.KLCommunication import message
 from klibs.KLGraphics import KLDraw as kld
-from klibs.KLGraphics import blit, fill, flip, clear
+from klibs.KLGraphics import blit, fill, flip
 from klibs.KLUserInterface import any_key, key_pressed, smart_sleep
 from klibs.KLUtilities import deg_to_px, pump, rotate_points
 from klibs.KLEventInterface import TrialEventTicket as tet
