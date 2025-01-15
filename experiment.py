@@ -170,6 +170,7 @@ class line_discrimination_vigil(klibs.Experiment):
 
         return {
             "practicing": P.practicing,
+            "target_probability": P.condition,
             "block_num": P.block_number,
             "trial_num": P.trial_number,
             "target_trial": self.target_trial,
