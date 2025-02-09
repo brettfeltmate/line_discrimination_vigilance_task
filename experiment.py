@@ -16,6 +16,8 @@ from klibs.KLAudio import Tone
 
 from random import randrange, choice
 
+from rich.console import Console
+
 RED = [255, 0, 0, 255]
 WHITE = [255, 255, 255, 255]
 TL = "top_left"
@@ -27,6 +29,8 @@ BR = "bottom_right"
 class line_discrimination_vigil(klibs.Experiment):
 
     def setup(self):
+
+        self.console = Console()
 
         if P.development_mode:
             P.practicing = True
@@ -61,7 +65,7 @@ class line_discrimination_vigil(klibs.Experiment):
         if P.run_practice_blocks:
             self.insert_practice_block(block_nums=[1], trial_counts=[1])
 
-        self.error_tone = Tone(duration = 100, volume = 0.5)
+        self.error_tone = Tone(duration=100, volume=0.5)
 
         # used to monitor and log performance during practice
         self.performance_log = []
@@ -106,7 +110,7 @@ class line_discrimination_vigil(klibs.Experiment):
                 self.evm.stop_clock()
                 # -- trial end --
 
-                # assess task difficulty (only runs after every tenth trial)
+                # assess task difficulty (starting after 20 trials, and subsequently rechecked every 10 trials)
                 self.assess_task_difficulty()
 
                 self.practice_trial_num += 1
@@ -168,7 +172,7 @@ class line_discrimination_vigil(klibs.Experiment):
             except IndexError:
                 pass
 
-        return {
+        trial_data = {
             "practicing": P.practicing,
             "target_probability": P.condition,
             "block_num": P.block_number,
@@ -181,6 +185,17 @@ class line_discrimination_vigil(klibs.Experiment):
             "rt": rt,
             "correct": correct,
         }
+
+        if P.practicing:
+            self.console.log(
+                trial_data,
+                self.practice_trial_num,
+                self.practice_performance,
+                self.difficulty_check_completed,
+                log_locals=True,
+            )
+
+        return trial_data
 
     def trial_clean_up(self):
         pass
@@ -208,21 +223,6 @@ class line_discrimination_vigil(klibs.Experiment):
 
         # after 20 trials, and every 10 trials following conduct performance check
         if self.practice_trial_num >= 20 and self.practice_trial_num % 10 == 0:
-            # if P.development_mode:
-            #     msg = (
-            #         f"Assessing performance from trials {self.practice_trial_num - 10} to {self.practice_trial_num}",
-            #     )
-            #     print(msg)
-            #     fill()
-            #     message(
-            #         text=msg,
-            #         location=P.screen_c,
-            #         registration=5,
-            #         blit_txt=True,
-            #     )
-            #     flip()
-            #     any_key()
-            #     clear()
 
             self.performance_log.append(self.query_performance())
 
@@ -237,18 +237,6 @@ class line_discrimination_vigil(klibs.Experiment):
 
             # if insufficient, or otherwise not ideal, adjust task difficulty
             adjustment = self.task_difficulty_adjustment(self.performance_log[-1])
-
-            # if P.development_mode:
-            #     fill()
-            #
-            #     msg = f"Performance found to be {self.performance_log[-1]}\nAdjusting offset by {adjustment}."
-            #     print(msg)
-            #     msg += "\n(any key)"
-            #     message(text=msg, location=P.screen_c, registration=5, blit_txt=True)
-            #
-            #     flip()
-            #     any_key()
-            #     clear()
 
             self.params["target_offset_mod"] += adjustment
 
