@@ -15,8 +15,6 @@ from klibs.KLAudio import Tone
 
 from random import randrange, choice
 
-from rich.console import Console
-
 RED = [255, 0, 0, 255]
 WHITE = [255, 255, 255, 255]
 TL = "top_left"
@@ -32,8 +30,6 @@ class line_discrimination_vigil(klibs.Experiment):
         if P.run_practice_blocks:
             if not os.path.exists("ExpAssets/Data/practice"):
                 os.mkdir("ExpAssets/Data/practice")
-
-        self.console = Console()
 
         if P.development_mode:
             P.practicing = True
@@ -74,7 +70,6 @@ class line_discrimination_vigil(klibs.Experiment):
         # used to monitor and log performance during practice
         self.performance_log = []
 
-        self.console.log(self.params, log_locals=True)
 
     def block(self):
         msg = "When a target is presented, press the spacebar, otherwise press nothing.\nPress any key to start block."
@@ -236,12 +231,11 @@ class line_discrimination_vigil(klibs.Experiment):
 
             self.params["target_mod"] += adjustment
 
-            self.console.log(self.performance_log, log_locals=True)
+
 
     # grabs and sums accuracy across last 20 trials
     def query_performance(self):
         acc = sum(self.practice_performance[-P.assessment_window :]) / P.assessment_window  # type: ignore[attr-defined]
-        self.console.log(self.practice_performance, log_locals=True)
 
         if acc > P.performance_bounds[1]:  # type: ignore[attr-defined]
             return "high"
