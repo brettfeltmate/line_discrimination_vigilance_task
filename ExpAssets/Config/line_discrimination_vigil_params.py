@@ -9,7 +9,7 @@ manual_trial_generation = False
 run_practice_blocks = True
 multi_user = False
 view_distance = 57  # in centimeters, 57cm = 1 deg of visual angle per cm of screen
-allow_hidpi = True
+allow_hidpi = False
 
 #########################################
 # Available Hardware
@@ -66,8 +66,7 @@ append_hostname = False
 #########################################
 # PROJECT-SPECIFIC VARS
 #########################################
-performance_bounds_percent = [0.8, 0.9]
+performance_bounds = [0.8, 0.9]
 assessment_window = 20
-performance_bounds = [assessment_window * x for x in performance_bounds_percent]
 difficulty_upstep = -0.3
 difficulty_downstep = 0.3

@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Brett Feltmate"
-
+import os
 import klibs
+from csv import DictWriter
+
 from klibs import P
 from klibs.KLCommunication import message
 from klibs.KLGraphics import KLDraw as kld
 from klibs.KLGraphics import blit, fill, flip
-from klibs.KLUserInterface import any_key, key_pressed, smart_sleep
+from klibs.KLUserInterface import any_key, key_pressed, smart_sleep, ui_request
 from klibs.KLUtilities import deg_to_px, pump, rotate_points
-from klibs.KLEventInterface import TrialEventTicket as tet
-from klibs.KLExceptions import TrialException
-from klibs.KLTime import Stopwatch
 from klibs.KLAudio import Tone
 
 from random import randrange, choice
@@ -30,6 +29,10 @@ class line_discrimination_vigil(klibs.Experiment):
 
     def setup(self):
 
+        if P.run_practice_blocks:
+            if not os.path.exists("ExpAssets/Data/practice"):
+                os.mkdir("ExpAssets/Data/practice")
+
         self.console = Console()
 
         if P.development_mode:
@@ -39,14 +42,15 @@ class line_discrimination_vigil(klibs.Experiment):
             "line_length": deg_to_px(0.5),
             "fixation_width": deg_to_px(0.5),
             "stroke_width": deg_to_px(0.1),
-            "jitter_unit": deg_to_px(0.02),
+            "jitter_unit": deg_to_px(0.05),
             "jitter_bound": deg_to_px(0.06),
             # Multiplier; initial value, later modified based on performance
-            "target_offset_mod": 5,  # TODO: start easy to give buffer for performance checks
+            "target_mod": 5,  # TODO: start easy to give buffer for performance checks
             "flanker_gap": deg_to_px(0.15),
             "array_locs": [-2, -1, 0, 1, 2],
             # in ms
-            "trial_timeout": 2000,
+            "array_on": 500,
+            "trial_done": 2000,
             "array_duration": 200,
             "array_offset": P.screen_c[1] // 2,  # type: ignore[operator]
         }
@@ -70,6 +74,8 @@ class line_discrimination_vigil(klibs.Experiment):
         # used to monitor and log performance during practice
         self.performance_log = []
 
+        self.console.log(self.params, log_locals=True)
+
     def block(self):
         msg = "When a target is presented, press the spacebar, otherwise press nothing.\nPress any key to start block."
         if P.practicing:
@@ -88,89 +94,101 @@ class line_discrimination_vigil(klibs.Experiment):
 
         any_key()
 
-        # loop, creating new practice trials until performance at threshold
         if P.practicing:
+
+            fname = "ExpAssets/Data/practice/P" + str(P.participant_id) + ".csv"
+
+            col_names = [
+                "practicing",
+                "target_probability",
+                "block_num",
+                "trial_num",
+                "target_trial",
+                "target_jitter",
+                "practice_performance",
+                "responded",
+                "rt",
+                "correct",
+            ]
+
+            with open(fname, "w") as file:
+                writer = DictWriter(file, col_names)
+                writer.writeheader()
+
             self.practice_trial_num = 1
             self.practice_performance = []
             self.difficulty_check_completed = False
+
             while P.practicing:
-                # As this isn't a "real" block, FactorSet is not yet available
-                # so trial factors need to be selected manually
                 self.target_trial = choice([True, False])
 
                 # -- trial start --
                 self.trial_prep()
                 self.evm.start_clock()
 
-                try:
-                    self.trial()
-                except TrialException:
-                    pass
+                trial = self.trial()
+                trial["trial_num"] = self.practice_trial_num
 
                 self.evm.stop_clock()
                 # -- trial end --
 
                 # assess task difficulty (starting after 20 trials, and subsequently rechecked every 10 trials)
+                self.practice_performance.append(int(trial["correct"]))
                 self.assess_task_difficulty()
 
-                self.practice_trial_num += 1
+                with open(fname, "a") as file:
+                    writer = DictWriter(file, col_names)
+                    writer.writerow(trial)
 
                 # if difficulty checks completed, end practice
                 if self.difficulty_check_completed:
                     P.practicing = False
                     break
 
+                self.practice_trial_num += 1
+
     def trial_prep(self):
         # get location and spawn array for trial
         self.array = self.make_array()
 
         # define time-series of events
-        trial_events = []
-        trial_events.append(["array_off", self.params["array_duration"]])
-        trial_events.append(["trial_timeout", self.params["trial_timeout"]])
-
-        for ev in trial_events:
-            self.evm.register_ticket(tet(ev[0], ev[1]))
+        self.evm.add_event("array_on", self.params["array_on"])
+        self.evm.add_event("array_off", self.params["array_duration"], after="array_on")
+        self.evm.add_event("trial_done", self.params["trial_done"])
 
     def trial(self):  # type: ignore[override]
 
-        resp, rt = None, None
+        resp, rt = False, None
 
-        # present array immediately
+        while self.evm.before("array_on"):
+            q = pump(True)
+            _ = ui_request(queue=q)
+
         self.blit_array()
-        array_visible = True
 
-        reaction_timer = Stopwatch()
-        while self.evm.before("trial_timeout"):
+        array_visible = True
+        array_onset_realtime = self.evm.trial_time_ms
+
+        while self.evm.before("trial_done"):
             if array_visible and self.evm.after("array_off"):
                 fill()
                 blit(self.fixation, registration=5, location=P.screen_c)
                 flip()
+
                 array_visible = False
-            queue = pump()
-            if key_pressed("space", queue=queue):
-                resp = True
-                rt = reaction_timer.elapsed()
-                break
 
-        # log response accuracy
-        if self.target_trial and resp:
-            correct = 1
-        elif not self.target_trial and resp is None:
-            correct = 1
-        else:
-            correct = 0
+            q = pump(True)
 
-        # for posterity, log results of performance checks
-        practice_performance = "NA"  # default value to avoid value errors
+            if key_pressed("space", queue=q) and not resp:
+                rt, resp = self.evm.trial_time_ms - array_onset_realtime, True
+
+                if not self.target_trial and P.practicing:
+                    self.error_tone.play()
+
         if P.practicing:
-            if correct == 0:
+            if self.target_trial and not resp:
                 self.error_tone.play()
-                smart_sleep(1000)
-            try:
-                practice_performance = self.performance_log[-1]
-            except IndexError:
-                pass
+                smart_sleep(200)
 
         trial_data = {
             "practicing": P.practicing,
@@ -178,22 +196,11 @@ class line_discrimination_vigil(klibs.Experiment):
             "block_num": P.block_number,
             "trial_num": P.trial_number,
             "target_trial": self.target_trial,
-            "target_jitter": (
-                self.params["target_offset_mod"] if self.target_trial else "NA"
-            ),
-            "practice_performance": practice_performance,
+            "target_jitter": (self.params["target_mod"] if self.target_trial else "NA"),
+            "responded": resp,
             "rt": rt,
-            "correct": correct,
+            "correct": self.target_trial == resp,
         }
-
-        if P.practicing:
-            self.console.log(
-                trial_data,
-                self.practice_trial_num,
-                self.practice_performance,
-                self.difficulty_check_completed,
-                log_locals=True,
-            )
 
         return trial_data
 
@@ -204,21 +211,6 @@ class line_discrimination_vigil(klibs.Experiment):
         pass
 
     def assess_task_difficulty(self):
-        """Assesses and adjusts task difficulty during practice trials.
-
-        Monitors participant performance every 10 trials after the first 20 trials.
-        Task difficulty is adjusted based on performance thresholds until stability
-        is achieved (two consecutive 'ideal' performance assessments).
-
-        Raises:
-            RuntimeError: If called outside of practice trials.
-        """
-        print("__assess_task_difficulty")
-        if not P.practicing:
-            raise RuntimeError(
-                "Task difficulty assessment should only performed during practice."
-            )
-
         adjustment = 0
 
         # after 20 trials, and every 10 trials following conduct performance check
@@ -226,61 +218,30 @@ class line_discrimination_vigil(klibs.Experiment):
 
             self.performance_log.append(self.query_performance())
 
-            adjustment = None
-
             # if sufficient data, check for performance stability
             if len(self.performance_log) > 1:
-                if self.performance_log[-2] == "ideal":
-                    if self.performance_log[-1] == "ideal":
-                        self.difficulty_check_completed = True
-                        return
+                if self.performance_log[-2:] == ["ideal", "ideal"]:
+                    self.difficulty_check_completed = True
+                    return
+
+            perf = self.performance_log[-1]
 
             # if insufficient, or otherwise not ideal, adjust task difficulty
-            adjustment = self.task_difficulty_adjustment(self.performance_log[-1])
+            if perf == "ideal":
+                adjustment = 0.0
+            elif perf == "low":
+                adjustment = P.difficulty_downstep  # type: ignore[attr-defined]
+            else:
+                adjustment = P.difficulty_upstep  # type: ignore[attr-defined]
 
-            self.params["target_offset_mod"] += adjustment
+            self.params["target_mod"] += adjustment
 
-    def task_difficulty_adjustment(self, performance):
-        """Determines the adjustment value for task difficulty based on performance.
-
-        Args:
-            performance: Performance category ('high', 'low', or 'ideal') supplied by __query_performance
-
-        Returns:
-            float: Adjustment value for target offset modifier
-                  (0 for ideal, upstep for high, downstep for low; step values defined in _params)
-
-        Raises:
-            ValueError: If performance is not one of 'high', 'low', or 'ideal'
-        """
-        print("__task_difficulty_adjustment")
-        if performance not in ["high", "low", "ideal"]:
-            raise ValueError('performance must be one of: "high", "low", "ideal"')
-
-        if performance == "ideal":
-            return 0.0
-
-        return P.difficulty_upstep if performance == "high" else P.difficulty_downstep  # type: ignore[attr-defined]
+            self.console.log(self.performance_log, log_locals=True)
 
     # grabs and sums accuracy across last 20 trials
     def query_performance(self):
-        """Queries and evaluates participant performance over assessment window.
-
-        Retrieves accuracy data for recent trials and categorizes performance
-        based on performance bounds (defined in _params).
-
-        Returns:
-            str: Performance category ('high', 'low', or 'ideal')
-
-        Raises:
-            RuntimeError: If number of responses doesn't match trial number
-                        or if insufficient trials for assessment
-        """
-
-        try:
-            acc = sum(self.practice_performance[-P.assessment_window :])  # type: ignore[attr-defined]
-        except IndexError:
-            raise RuntimeError("Insufficient trials for performance assessment.")
+        acc = sum(self.practice_performance[-P.assessment_window :]) / P.assessment_window  # type: ignore[attr-defined]
+        self.console.log(self.practice_performance, log_locals=True)
 
         if acc > P.performance_bounds[1]:  # type: ignore[attr-defined]
             return "high"
@@ -290,7 +251,6 @@ class line_discrimination_vigil(klibs.Experiment):
             return "ideal"
 
     def blit_array(self):
-        print("__blit_array")
         fill()
         blit(self.fixation, registration=5, location=P.screen_c)
 
@@ -323,7 +283,7 @@ class line_discrimination_vigil(klibs.Experiment):
         2. Horizontal spacing defined by flanker_offset parameter
         3. Random vertical jitter unique to each line
 
-        For target trials, the central line's jitter is increased by target_offset_mod
+        For target trials, the central line's jitter is increased by target_mod
         to make it more discriminable from flanking lines.
 
         Returns:
@@ -354,7 +314,7 @@ class line_discrimination_vigil(klibs.Experiment):
             max_jitter = max(flanker_jitter)
 
             # max_jitter = max([abs(jit) for jit in flanker_jitter])
-            flanker_jitter[2] = max_jitter * self.params["target_offset_mod"]
+            flanker_jitter[2] = max_jitter * self.params["target_mod"]
 
         # construct (x,y) coords for each line in array
         for i in range(5):
