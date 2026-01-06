@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-__author__ = "Brett Feltmate"
+__author__ = 'Brett Feltmate'
 import os
 import klibs
 from csv import DictWriter
@@ -17,47 +17,46 @@ from random import randrange, choice
 
 RED = [255, 0, 0, 255]
 WHITE = [255, 255, 255, 255]
-TL = "top_left"
-TR = "top_right"
-BL = "bottom_left"
-BR = "bottom_right"
+TL = 'top_left'
+TR = 'top_right'
+BL = 'bottom_left'
+BR = 'bottom_right'
 
 
 class line_discrimination_vigil(klibs.Experiment):
-
     def setup(self):
 
         if P.run_practice_blocks:
-            if not os.path.exists("ExpAssets/Data/practice"):
-                os.mkdir("ExpAssets/Data/practice")
+            if not os.path.exists('ExpAssets/Data/practice'):
+                os.mkdir('ExpAssets/Data/practice')
 
         if P.development_mode:
             P.practicing = True
 
         self.params = {
-            "line_length": deg_to_px(0.5),
-            "fixation_width": deg_to_px(0.5),
-            "stroke_width": deg_to_px(0.1),
-            "jitter_unit": deg_to_px(0.05),
-            "jitter_bound": deg_to_px(0.06),
+            'line_length': deg_to_px(0.5),
+            'fixation_width': deg_to_px(0.5),
+            'stroke_width': deg_to_px(0.1),
+            'jitter_unit': deg_to_px(0.05),
+            'jitter_bound': deg_to_px(0.06),
             # Multiplier; initial value, later modified based on performance
-            "target_mod": 5,  # TODO: start easy to give buffer for performance checks
-            "flanker_gap": deg_to_px(0.15),
-            "array_locs": [-2, -1, 0, 1, 2],
+            'target_mod': 5,  # TODO: start easy to give buffer for performance checks
+            'flanker_gap': deg_to_px(0.15),
+            'array_locs': [-2, -1, 0, 1, 2],
             # in ms
-            "array_on": 500,
-            "trial_done": 2000,
-            "array_duration": 200,
-            "array_offset": P.screen_c[1] // 2,  # type: ignore[operator]
+            'array_on': 500,
+            'trial_done': 2000,
+            'array_duration': 200,
+            'array_offset': P.screen_c[1] // 2,  # type: ignore[operator]
         }
 
-        self.params["flanker_offset"] = (
-            self.params["line_length"] + self.params["flanker_gap"]
+        self.params['flanker_offset'] = (
+            self.params['line_length'] + self.params['flanker_gap']
         )  # center-to-center distance between flankers
 
         self.fixation = kld.FixationCross(
-            size=self.params["fixation_width"],
-            thickness=self.params["stroke_width"],
+            size=self.params['fixation_width'],
+            thickness=self.params['stroke_width'],
             fill=WHITE,
         )
 
@@ -70,11 +69,10 @@ class line_discrimination_vigil(klibs.Experiment):
         # used to monitor and log performance during practice
         self.performance_log = []
 
-
     def block(self):
-        msg = "When a target is presented, press the spacebar, otherwise press nothing.\nPress any key to start block."
+        msg = 'When a target is presented, press the spacebar, otherwise press nothing.\nPress any key to start block.'
         if P.practicing:
-            msg += "\n\nThis is a practice block. If you make an error, a tone will sound to indicate so."
+            msg += '\n\nThis is a practice block. If you make an error, a tone will sound to indicate so.'
 
         fill()
 
@@ -91,22 +89,24 @@ class line_discrimination_vigil(klibs.Experiment):
 
         if P.practicing:
 
-            fname = "ExpAssets/Data/practice/P" + str(P.participant_id) + ".csv"
+            fname = (
+                'ExpAssets/Data/practice/P' + str(P.participant_id) + '.csv'
+            )
 
             col_names = [
-                "practicing",
-                "target_probability",
-                "block_num",
-                "trial_num",
-                "target_trial",
-                "target_jitter",
-                "practice_performance",
-                "responded",
-                "rt",
-                "correct",
+                'practicing',
+                'target_probability',
+                'block_num',
+                'trial_num',
+                'target_trial',
+                'target_jitter',
+                'practice_performance',
+                'responded',
+                'rt',
+                'correct',
             ]
 
-            with open(fname, "w") as file:
+            with open(fname, 'w') as file:
                 writer = DictWriter(file, col_names)
                 writer.writeheader()
 
@@ -122,16 +122,16 @@ class line_discrimination_vigil(klibs.Experiment):
                 self.evm.start_clock()
 
                 trial = self.trial()
-                trial["trial_num"] = self.practice_trial_num
+                trial['trial_num'] = self.practice_trial_num
 
                 self.evm.stop_clock()
                 # -- trial end --
 
                 # assess task difficulty (starting after 20 trials, and subsequently rechecked every 10 trials)
-                self.practice_performance.append(int(trial["correct"]))
+                self.practice_performance.append(int(trial['correct']))
                 self.assess_task_difficulty()
 
-                with open(fname, "a") as file:
+                with open(fname, 'a') as file:
                     writer = DictWriter(file, col_names)
                     writer.writerow(trial)
 
@@ -147,15 +147,17 @@ class line_discrimination_vigil(klibs.Experiment):
         self.array = self.make_array()
 
         # define time-series of events
-        self.evm.add_event("array_on", self.params["array_on"])
-        self.evm.add_event("array_off", self.params["array_duration"], after="array_on")
-        self.evm.add_event("trial_done", self.params["trial_done"])
+        self.evm.add_event('array_on', self.params['array_on'])
+        self.evm.add_event(
+            'array_off', self.params['array_duration'], after='array_on'
+        )
+        self.evm.add_event('trial_done', self.params['trial_done'])
 
     def trial(self):  # type: ignore[override]
 
         resp, rt = False, None
 
-        while self.evm.before("array_on"):
+        while self.evm.before('array_on'):
             q = pump(True)
             _ = ui_request(queue=q)
 
@@ -164,8 +166,8 @@ class line_discrimination_vigil(klibs.Experiment):
         array_visible = True
         array_onset_realtime = self.evm.trial_time_ms
 
-        while self.evm.before("trial_done"):
-            if array_visible and self.evm.after("array_off"):
+        while self.evm.before('trial_done'):
+            if array_visible and self.evm.after('array_off'):
                 fill()
                 blit(self.fixation, registration=5, location=P.screen_c)
                 flip()
@@ -174,7 +176,7 @@ class line_discrimination_vigil(klibs.Experiment):
 
             q = pump(True)
 
-            if key_pressed("space", queue=q) and not resp:
+            if key_pressed('space', queue=q) and not resp:
                 rt, resp = self.evm.trial_time_ms - array_onset_realtime, True
 
                 if not self.target_trial and P.practicing:
@@ -186,15 +188,17 @@ class line_discrimination_vigil(klibs.Experiment):
                 smart_sleep(200)
 
         trial_data = {
-            "practicing": P.practicing,
-            "target_probability": P.condition,
-            "block_num": P.block_number,
-            "trial_num": P.trial_number,
-            "target_trial": self.target_trial,
-            "target_jitter": (self.params["target_mod"] if self.target_trial else "NA"),
-            "responded": resp,
-            "rt": rt,
-            "correct": self.target_trial == resp,
+            'practicing': P.practicing,
+            'target_probability': P.condition,
+            'block_num': P.block_number,
+            'trial_num': P.trial_number,
+            'target_trial': self.target_trial,
+            'target_jitter': (
+                self.params['target_mod'] if self.target_trial else 'NA'
+            ),
+            'responded': resp,
+            'rt': rt,
+            'correct': self.target_trial == resp,
         }
 
         return trial_data
@@ -215,34 +219,32 @@ class line_discrimination_vigil(klibs.Experiment):
 
             # if sufficient data, check for performance stability
             if len(self.performance_log) > 1:
-                if self.performance_log[-2:] == ["ideal", "ideal"]:
+                if self.performance_log[-2:] == ['ideal', 'ideal']:
                     self.difficulty_check_completed = True
                     return
 
             perf = self.performance_log[-1]
 
             # if insufficient, or otherwise not ideal, adjust task difficulty
-            if perf == "ideal":
+            if perf == 'ideal':
                 adjustment = 0.0
-            elif perf == "low":
+            elif perf == 'low':
                 adjustment = P.difficulty_downstep  # type: ignore[attr-defined]
             else:
                 adjustment = P.difficulty_upstep  # type: ignore[attr-defined]
 
-            self.params["target_mod"] += adjustment
-
-
+            self.params['target_mod'] += adjustment
 
     # grabs and sums accuracy across last 20 trials
     def query_performance(self):
         acc = sum(self.practice_performance[-P.assessment_window :]) / P.assessment_window  # type: ignore[attr-defined]
 
         if acc > P.performance_bounds[1]:  # type: ignore[attr-defined]
-            return "high"
+            return 'high'
         elif acc < P.performance_bounds[0]:  # type: ignore[attr-defined]
-            return "low"
+            return 'low'
         else:
-            return "ideal"
+            return 'ideal'
 
     def blit_array(self):
         fill()
@@ -250,20 +252,20 @@ class line_discrimination_vigil(klibs.Experiment):
 
         if P.development_mode and self.target_trial:
             self.line = kld.Line(
-                length=self.params["line_length"],
-                thickness=self.params["stroke_width"],
+                length=self.params['line_length'],
+                thickness=self.params['stroke_width'],
                 color=RED,
                 rotation=90,
             )
         else:
             self.line = kld.Line(
-                length=self.params["line_length"],
-                thickness=self.params["stroke_width"],
+                length=self.params['line_length'],
+                thickness=self.params['stroke_width'],
                 color=WHITE,
                 rotation=90,
             )
 
-        if self.evm.before("array_off"):
+        if self.evm.before('array_off'):
             for loc in self.array:
                 blit(self.line, registration=5, location=loc)
 
@@ -284,7 +286,10 @@ class line_discrimination_vigil(klibs.Experiment):
             list[tuple[int, int]]: List of (x,y) coordinates for each line in the array,
                                   ordered from leftmost to rightmost position.
         """
-        array_origin = [P.screen_c[0], P.screen_c[1] - self.params["array_offset"]]
+        array_origin = [
+            P.screen_c[0],
+            P.screen_c[1] - self.params['array_offset'],
+        ]
         rotation = randrange(0, 359)
 
         array_center = rotate_points(
@@ -297,8 +302,8 @@ class line_discrimination_vigil(klibs.Experiment):
         flanker_jitter = [
             randrange(
                 0,
-                self.params["jitter_bound"],
-                self.params["jitter_unit"],
+                self.params['jitter_bound'],
+                self.params['jitter_unit'],
             )
             for _ in range(5)
         ]
@@ -308,13 +313,13 @@ class line_discrimination_vigil(klibs.Experiment):
             max_jitter = max(flanker_jitter)
 
             # max_jitter = max([abs(jit) for jit in flanker_jitter])
-            flanker_jitter[2] = max_jitter * self.params["target_mod"]
+            flanker_jitter[2] = max_jitter * self.params['target_mod']
 
         # construct (x,y) coords for each line in array
         for i in range(5):
             sign = choice([-1, 1])
             x = array_center[0] + (
-                self.params["array_locs"][i] * self.params["flanker_offset"]
+                self.params['array_locs'][i] * self.params['flanker_offset']
             )
             y = array_center[1] + (flanker_jitter[i] * sign)
             locs.append((x, y))
